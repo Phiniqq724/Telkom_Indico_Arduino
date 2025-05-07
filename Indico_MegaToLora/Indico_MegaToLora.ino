@@ -3,6 +3,7 @@
 #include "EasyNextionLibrary.h"
 #include <Sensirion.h>
 #include <SensirionSHT.h>
+#include <SoftwareSerial.h>
 
 // create an instance of SensirionSHT on pins 4 and 5
 SensirionSHT Sensor = SensirionSHT(20, 21);
@@ -10,7 +11,9 @@ SensirionSHT Sensor = SensirionSHT(20, 21);
 // set delay to one second
 long delayTime = 1;
 
-EasyNex myNex(Serial);
+SoftwareSerial CO2Serial(10, 11); // RX, TX
+
+EasyNex myNex(Serial2);
 int currentPage = -1;
 
 ModbusMaster CO2;
@@ -19,7 +22,7 @@ ModbusMaster WIND;
 
 #define SS_PIN 53
 #define RST_PIN 9
-#define DIO0_PIN 2
+#define DIO0_PIN 2  
 
 String device_id = "1";
 String kandang_id = "1_1_3";
@@ -31,7 +34,7 @@ float nh3ppm = 0;
 float co2ppm = 0;
 float windSpeed = 0;
 
-void updateNextionDisplay(float temperature, float humidity, float co2, float nh3, float wind)
+void updateNextionDisplay(float temperature, float humidity, float co2, float nh3, float wind, int currentPage)
 {
   String tempStr = String(temperature, 1) + " C";
   String humStr = String(humidity, 1) + "%";
@@ -39,6 +42,8 @@ void updateNextionDisplay(float temperature, float humidity, float co2, float nh
   String co2Str = String((int)co2) + " ppm";
   String nh3Str = String(nh3, 1) + " ppm";
   String windStr = String(wind, 1) + " m/s";
+
+  Serial.println(tempHumStr);
 
   switch (currentPage)
   {
@@ -80,25 +85,26 @@ void updateNextionDisplay(float temperature, float humidity, float co2, float nh
 
 void setup()
 {
-  // NEXTION
   Serial.begin(9600);
+  // NEXTION
+  pinMode(8, OUTPUT); // DE/RE pin
+  digitalWrite(8, 0); // Mulai dalam mode RX
   myNex.begin(9600);
   delay(500);
-
+  CO2Serial.begin(4800);
   Serial1.begin(4800);
-  Serial2.begin(4800);
   Serial3.begin(4800);
-  CO2.begin(1, Serial1);
-  NH3.begin(1, Serial2);
-  WIND.begin(1, Serial3);
+  CO2.begin(1, CO2Serial);
+  NH3.begin(1, Serial3);
+  WIND.begin(1, Serial1);
 
   LoRa.setPins(SS_PIN, RST_PIN, DIO0_PIN);
-  // if (!LoRa.begin(433E6))
-  // {
-  //   Serial.println("LoRa init failed");
-  //   while (1)
-  //     ;
-  // }
+  if (!LoRa.begin(433E6))
+  {
+    Serial.println("LoRa init failed");
+    while (1)
+      ;
+  }
 
   LoRa.setSpreadingFactor(7);
   LoRa.setSignalBandwidth(125E3);
@@ -110,12 +116,15 @@ void setup()
 int checkCurrentPage()
 {
   int page = myNex.readNumber("dp"); // Baca halaman saat ini dari Nextion
+  Serial.println(page);
   if (page != currentPage)
   {
     currentPage = page;
     Serial.print("Current Page: ");
     Serial.println(currentPage);
   }
+  // Serial.print("NIGGA: ");
+  // Serial.println(currentPage);
   return currentPage;
 }
 
@@ -126,7 +135,6 @@ void loop()
   float temperature = Sensor.getTemperature();
   float humidity = Sensor.getHumidity();
   myNex.NextionListen();
-  updateNextionDisplay(temperature, humidity, co2ppm, nh3ppm, windSpeed);
   if (millis() - lastSendTime >= sendInterval)
   {
     lastSendTime = millis();
@@ -154,8 +162,8 @@ void loop()
                      "3\",\"suhu\":" + temperature +
                      ",\"kelembaban\":" + humidity +
                      ",\"co2\":" + co2ppm +
-                     ",\"NH3\":" + nh3ppm +
-                     ",\"windspeed\":" + windSpeed + "}";
+                     ",\"ammonia\":" + nh3ppm +
+                     ",\"wind\":" + windSpeed + "}";
 
     // Send data
     LoRa.beginPacket();
@@ -164,4 +172,6 @@ void loop()
 
     Serial.println(payload);
   }
+  int realCurrentPage = checkCurrentPage();
+  updateNextionDisplay(temperature, humidity, co2ppm, nh3ppm, windSpeed, realCurrentPage);
 }
