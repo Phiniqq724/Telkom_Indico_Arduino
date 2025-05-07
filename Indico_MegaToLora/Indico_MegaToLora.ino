@@ -22,7 +22,7 @@ ModbusMaster WIND;
 
 #define SS_PIN 53
 #define RST_PIN 9
-#define DIO0_PIN 2  
+#define DIO0_PIN 2
 
 String device_id = "1";
 String kandang_id = "1_1_3";
@@ -149,7 +149,7 @@ void loop()
 
     if (resultnh == NH3.ku8MBSuccess)
     {
-      nh3ppm = NH3.getResponseBuffer(0);
+      nh3ppm = NH3.getResponseBuffer(0) / 10;
     }
     if (resultwd == WIND.ku8MBSuccess)
     {
